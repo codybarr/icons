@@ -1,0 +1,39 @@
+{
+  "name": "@nosweat/icons",
+  "version": "0.1.0",
+  "description": "Tree-shakable icon geometry and native Remix 3.1 components",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "exports": {
+    "./core": { "types": "./dist/src/core.d.ts", "import": "./dist/src/core.js" },
+    "./core/tabler": { "types": "./dist/generated/core/tabler/index.d.ts", "import": "./dist/generated/core/tabler/index.js" },
+    "./core/tabler/*": { "types": "./dist/generated/core/tabler/*.d.ts", "import": "./dist/generated/core/tabler/*.js" },
+    "./remix/tabler": { "types": "./dist/generated/remix/tabler/index.d.ts", "import": "./dist/generated/remix/tabler/index.js" },
+    "./remix/tabler/*": { "types": "./dist/generated/remix/tabler/*.d.ts", "import": "./dist/generated/remix/tabler/*.js" },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "generate": "bun scripts/generate.ts",
+    "build": "bun scripts/build.ts",
+    "test": "bun test",
+    "test:package": "bun run build && bun scripts/package.check.ts",
+    "typecheck": "bun check",
+    "dev": "bun --hot website/server.ts",
+    "build:website": "bun scripts/build-website.ts",
+    "deploy": "bun run build:website && bunx wrangler deploy",
+    "dev:worker": "bun run build:website && bunx wrangler dev",
+    "prepack": "bun run build",
+    "prepublishOnly": "bun test && bun run test:package && bun check"
+  },
+  "peerDependencies": { "remix": "^3.1.0" },
+  "peerDependenciesMeta": { "remix": { "optional": true } },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@xmldom/xmldom": "^0.9.12",
+    "remix": "3.1.0",
+    "typescript": "^7",
+    "wrangler": "^4.156.0"
+  }
+}
