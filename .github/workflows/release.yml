@@ -1,0 +1,131 @@
+name: Publish npm package
+
+on:
+  release:
+    types: [published]
+  schedule:
+    - cron: '23 3 * * *' # Nightly at 03:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-release
+  cancel-in-progress: false
+
+jobs:
+  update-vendors:
+    if: github.event_name != 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.update.outputs.changed }}
+      release_tag: ${{ steps.update.outputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - run: bun install --frozen-lockfile
+
+      - name: Check latest stable vendor releases
+        id: update
+        run: bun scripts/check-vendors.ts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Validate updated icons before committing
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          bun run generate --version "$(bun -e 'console.log((await Bun.file("vendors.json").json()).tabler)')"
+          bun test
+          bun run test:package
+          bun check
+
+      - name: Commit update and create GitHub Release
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.update.outputs.release_tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json vendors.json
+          git commit -m "chore(release): $RELEASE_TAG update vendor icons"
+          git tag "$RELEASE_TAG"
+          git push --atomic origin "HEAD:refs/heads/$DEFAULT_BRANCH" "refs/tags/$RELEASE_TAG"
+          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes "Automated vendor update. See vendors.json and the package manifest for the pinned versions."
+
+  # Releases created with GITHUB_TOKEN do not trigger another workflow run.
+  # Publish the automated release here as well as handling human-created releases.
+  publish:
+    needs: update-vendors
+    if: >-
+      always() && (github.event_name == 'release' ||
+      (needs.update-vendors.result == 'success' && needs.update-vendors.outputs.changed == 'true'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || needs.update-vendors.outputs.release_tag }}
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Validate release version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || needs.update-vendors.outputs.release_tag }}
+          PRERELEASE: ${{ github.event.release.prerelease || false }}
+        run: |
+          bun -e '
+            const pkg = await Bun.file("package.json").json();
+            if (pkg.name !== "@nosweat/icons") throw new Error("Unexpected package name");
+            if (process.env.RELEASE_TAG !== `v${pkg.version}`) {
+              throw new Error("Release tag must be v followed by the package.json version");
+            }
+            if (pkg.version.includes("-") !== (process.env.PRERELEASE === "true")) {
+              throw new Error("Prerelease versions must be marked as prereleases on GitHub, and stable versions must not be");
+            }
+          '
+
+      - run: bun install --frozen-lockfile
+
+      - name: Generate pinned icon collection
+        run: bun run generate --version "$(bun -e 'console.log((await Bun.file("vendors.json").json()).tabler)')"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - run: bun test
+      - run: bun run test:package
+      - run: bun check
+
+      - name: Pack validated package
+        run: bun pm pack --ignore-scripts --filename nosweat-icons.tgz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nosweat-icons-${{ github.event.release.tag_name || needs.update-vendors.outputs.release_tag }}
+          path: nosweat-icons.tgz
+          if-no-files-found: error
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # npm 11 supports trusted publishing; Bun still handles install/build/pack.
+      - name: Publish to npm with OIDC
+        env:
+          NPM_TAG: ${{ github.event.release.prerelease && 'next' || 'latest' }}
+        run: bunx npm@11 publish --ignore-scripts --provenance --access public --registry https://registry.npmjs.org --tag "$NPM_TAG" ./nosweat-icons.tgz

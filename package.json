@@ -2,6 +2,10 @@
   "name": "@nosweat/icons",
   "version": "0.1.0",
   "description": "Tree-shakable icon geometry and native Remix 3.1 components",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codybarr/icons.git"
+  },
   "type": "module",
   "sideEffects": false,
   "files": ["dist", "README.md"],

@@ -95,6 +95,40 @@ mise run stop
 
 The generator downloads raw SVGs directly from Tabler's tagged GitHub archive using Bun, validates them, preserves Tabler's MIT license, and writes a versioned manifest. Generation uses a staging directory so failures do not destroy the last successful output. Set `GITHUB_TOKEN` if needed for GitHub API rate limits. Generated sources are ignored; generate before building or packing the npm package.
 
+## npm releases
+
+Publishing a GitHub Release runs `.github/workflows/release.yml` to generate icons, run tests and type checks, build and pack **@nosweat/icons**, and publish the validated tarball to npm. The tarball is also retained as a GitHub Actions artifact. Draft releases and tag pushes alone do not publish.
+
+The same workflow checks for newer stable vendor releases nightly at **03:23 UTC** (or via **Run workflow**). Currently it checks Tabler against `vendors.json`. When a newer version is found, it bumps the package patch version, validates the updated icons, commits `vendors.json` and `package.json` to the default branch, tags and creates a GitHub Release, and publishes to npm in the same run. No update means no commit or publication; older upstream versions never cause downgrades. The default branch must allow pushes by `github-actions[bot]`; protected-branch rules may need an explicit allowance. Automated updates refuse to bump a prerelease package version.
+
+One-time setup:
+
+1. Ensure your npm account can publish to the `@nosweat` scope. If the package does not exist yet, publish its initial version manually first; npm requires an existing package to configure a trusted publisher.
+2. On npm, open **@nosweat/icons → Settings → Trusted Publisher** and select **GitHub Actions**. Set organization/user to **`codybarr`**, repository to **`icons`**, and workflow filename to **`release.yml`**. Leave the environment field empty (the workflow does not use a GitHub environment).
+3. Keep the GitHub repository public for npm provenance. The package's `repository` URL must match this repository.
+
+No `NPM_TOKEN` secret is needed. The job receives `id-token: write` permission and authenticates to npm using GitHub OIDC. Bun handles dependencies, builds, and packing; the publish step uses `bunx npm@11` for trusted publishing and provenance support.
+
+For each release:
+
+1. Update `version` in `package.json` and commit it.
+2. Create a tag matching that version exactly (for example, `v0.1.0`) and publish a GitHub Release for the tag.
+3. Check the **Publish npm package** Actions run. Stable releases publish to `latest`; prerelease versions (for example, `0.2.0-beta.1`) must be marked as GitHub prereleases and publish to `next`.
+
+The workflow rejects mismatched tags and prerelease flags. npm versions are immutable: use a new version for changes to an already published package. Release builds read the Tabler pin from `vendors.json`; nightly updates advance that pin automatically. Bun is pinned to the version in `mise.toml`.
+
+If publication fails after an automated commit/release, fix the cause and rerun the failed Actions jobs. The next nightly check will not republish an unchanged vendor version. GitHub Releases created with `GITHUB_TOKEN` do not trigger another workflow run, so automated updates publish in their originating run.
+
+To create a package locally without publishing:
+
+```sh
+bun run generate --version v3.50.0
+bun test
+bun run test:package
+bun check
+bun pm pack --ignore-scripts         # writes nosweat-icons-<version>.tgz
+```
+
 ## Cloudflare
 
 ```sh
@@ -103,6 +137,6 @@ bun run dev:worker
 bun run deploy
 ```
 
-The gallery includes search, style filters, pagination, previews, dark mode, and copyable Core/Remix imports. The website build prerenders SVG assets; the Cloudflare Worker needs neither Bun nor Remix at runtime. `wrangler.jsonc` uses the `nosweat-icons` Worker and an `ASSETS` binding. Deployment requires your Cloudflare credentials. No deployment or npm publication is performed automatically.
+The gallery includes search, style filters, pagination, previews, dark mode, and copyable Core/Remix imports. The website build prerenders SVG assets; the Cloudflare Worker needs neither Bun nor Remix at runtime. `wrangler.jsonc` uses the `nosweat-icons` Worker and an `ASSETS` binding. Deployment requires your Cloudflare credentials. Website deployment is manual; npm publication runs for published GitHub Releases and validated nightly vendor updates.
 
 Tabler icon artwork is MIT licensed: https://github.com/tabler/tabler-icons. The upstream license is included as `dist/TABLER-LICENSE` in the package and served with the gallery.
