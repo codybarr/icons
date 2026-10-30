@@ -152,7 +152,31 @@ html:has(dialog[open]) { overflow: hidden; }
 .size-controls button[aria-pressed="true"] { background: var(--active); color: var(--text); }
 .dialog-foot { color: var(--muted); font: 10px var(--mono); display: flex; align-items: center; gap: 7px; margin-top: 18px; }
 .icon-dialog .code-panel pre { max-height: 280px; }
-@media (min-width: 1400px) { .intro { padding-top: 82px; } }
+.home-intro { padding: 48px 0 36px; }
+.home .home-intro h1 { font-size: 48px; overflow-wrap: anywhere; }
+.quick-start { padding-top: 30px; border-top: 1px solid var(--line); }
+.setup-copy { color: var(--muted); font-size: 14px; line-height: 1.8; margin-bottom: 18px; max-width: 760px; }
+.setup-copy code { font-size: 12px; color: var(--text); }
+.setup-copy a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.setup-copy a svg { margin-left: 4px; }
+.after-code { margin-top: 18px; margin-bottom: 0; }
+.remix-install { border-left: 2px solid var(--line-strong); background: var(--subtle); margin-bottom: 24px; min-height: 58px; }
+.setup-grid { display: grid; grid-template-columns: 1fr 1.25fr; gap: 20px; }
+.setup-grid > div { min-width: 0; }
+.setup-grid h3 { font-size: 13px; font-weight: 500; margin-bottom: 12px; }
+.setup-grid .code-panel pre { min-height: 213px; }
+@media (max-width: 760px) {
+  .setup-grid { grid-template-columns: 1fr; gap: 24px; }
+  .setup-grid .code-panel pre { min-height: 0; }
+}
+@media (max-width: 480px) {
+  .home .home-intro h1 { font-size: 34px; }
+  .home-intro .intro-copy br { display: none; }
+  .home-intro .intro-actions { gap: 16px; }
+  .setup-copy { font-size: 13px; }
+  .quick-start .section-label { align-items: flex-start; }
+}
+@media (min-width: 1400px) { .intro:not(.home-intro) { padding-top: 82px; } }
 @media (max-width: 1000px) {
   .icon-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .preview-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }

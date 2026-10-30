@@ -1,28 +1,9 @@
 import { createRoot, on, ref, type Handle } from "remix/component";
-import { IconGridDots, IconSun, IconMoon, IconSearch, IconCopy, IconCheck, IconX, IconArrowRight, IconArrowLeft, IconArrowUpRight } from "../generated/remix/tabler/index.ts";
+import { IconGridDots, IconSun, IconMoon, IconSearch, IconX, IconArrowRight, IconArrowLeft, IconArrowUpRight } from "../generated/remix/tabler/index.ts";
 import { iconExample, iconImport, type IconRecord, type SearchResults, type StyleFilter } from "./shared.ts";
 
-function CopyButton(handle: Handle<{ text: string; label?: string }>) {
-  let state: "idle" | "copied" | "error" = "idle";
-  let timer: ReturnType<typeof setTimeout>;
-  handle.signal.addEventListener("abort", () => clearTimeout(timer));
-  return () => (
-    <span class="copy-control">
-      <button class="icon-button copy-button" type="button" aria-label={state === "copied" ? "Copied" : handle.props.label || "Copy code"} title={state === "copied" ? "Copied" : handle.props.label || "Copy code"}
-        mix={on("click", async () => {
-          try { await navigator.clipboard.writeText(handle.props.text); state = "copied"; }
-          catch { state = "error"; }
-          if (handle.signal.aborted) return;
-          handle.update();
-          clearTimeout(timer);
-          timer = setTimeout(() => { state = "idle"; handle.update(); }, 2200);
-        })}>
-        {state === "copied" ? <IconCheck size={17} /> : <IconCopy size={17} />}
-      </button>
-      <span class={state === "error" ? "copy-error" : "sr-only"} role="status">{state === "copied" ? "Copied to clipboard" : state === "error" ? "Could not copy. Select the code manually." : ""}</span>
-    </span>
-  );
-}
+import { CopyButton } from "./copy-button.tsx";
+import { Home } from "./home.tsx";
 
 function IconTile(handle: Handle<{ icon: IconRecord; select: (icon: IconRecord) => void }>) {
   return () => {
@@ -73,6 +54,7 @@ function IconModal(handle: Handle<{ icon: IconRecord; close: () => void }>) {
 }
 
 function App(handle: Handle) {
+  const isHome = location.pathname === "/";
   const initial = new URLSearchParams(location.search);
   let query = initial.get("q") || "";
   let style: StyleFilter = ["outline", "filled"].includes(initial.get("style") || "") ? initial.get("style") as StyleFilter : "all";
@@ -123,15 +105,15 @@ function App(handle: Handle) {
     clearTimeout(timeout); page = nextPage; void load();
     document.getElementById("explorer-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
-  handle.queueTask(() => { void load(); });
+  if (!isHome) handle.queueTask(() => { void load(); });
   handle.signal.addEventListener("abort", () => { clearTimeout(timeout); controller?.abort(); });
-  document.title = "Tabler — @nosweat/icons";
+  document.title = isHome ? "Install — @nosweat/icons" : "Tabler — @nosweat/icons";
 
   return () => <>
     <a href="#main" class="skip-link">Skip to content</a>
     <header class="site-header"><div class="header-inner">
       <a href="/" class="brand" aria-label="Nosweat icons home"><span class="brand-symbol"><IconGridDots size={22} /></span><span>@nosweat<span class="brand-divider">/</span><strong>icons</strong></span></a>
-      <nav aria-label="Main navigation"><a href="/" aria-current="page">Tabler</a><a href="https://www.npmjs.com/package/@nosweat/icons">npm ↗</a></nav>
+      <nav aria-label="Main navigation"><a href="/" aria-current={isHome ? "page" : undefined}>Get started</a><a href="/icons" aria-current={!isHome ? "page" : undefined}>Icons</a></nav>
       <div class="header-actions"><span class="version">v0.1.0</span><button type="button" class="icon-button theme-button" title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} mix={on("click", () => {
         theme = theme === "dark" ? "light" : "dark";
         document.documentElement.dataset.theme = theme;
@@ -140,7 +122,8 @@ function App(handle: Handle) {
         handle.update();
       })}>{theme === "dark" ? <IconSun size={19} /> : <IconMoon size={19} />}</button></div>
     </div></header>
-    <main id="main" class="main-shell explorer">
+    <main id="main" class={isHome ? "main-shell home" : "main-shell explorer"}>
+      {isHome ? <Home /> : <>
         <div class="page-heading" id="explorer-heading"><div><div class="eyebrow"><span class="status-dot" />THE COLLECTION</div><h1>Tabler icons.</h1><p>Outline & filled / Core & Remix 3.1</p></div><span class="collection-count">{results ? (results.counts.outline + results.counts.filled).toLocaleString() : "—"}<small>icons, any framework</small></span></div>
         <div class="search-toolbar">
           <div class="search-field"><IconSearch size={21} /><input type="search" name="q" value={query} maxLength={120} aria-label="Search icons" placeholder="Search icons by name…" autoComplete="off" spellcheck={false} mix={on("input", event => changeSearch((event.target as HTMLInputElement).value))} />{query && <button type="button" class="icon-button" title="Clear search" aria-label="Clear search" mix={on("click", () => changeSearch("", style, true))}><IconX size={17} /></button>}</div>
@@ -151,6 +134,7 @@ function App(handle: Handle) {
           : !loading && !results?.icons.length ? <div class="empty-state"><IconSearch size={36} /><h2>No icons found.</h2><p>Try a shorter name or a different style.</p><button class="button secondary" type="button" mix={on("click", () => changeSearch("", "all", true))}>Reset search</button></div>
           : <div class={`icon-grid ${loading ? "is-loading" : ""}`} aria-label="Icon results" aria-busy={loading}>{results ? results.icons.map(icon => <IconTile key={icon.component} icon={icon} select={select} />) : Array.from({ length: 24 }, (_, i) => <div key={i} class="skeleton-tile" />)}</div>}
         {results && results.pages > 1 && !error && <nav class="pagination" aria-label="Results pages"><span>Page {results.page} of {results.pages}</span><div><button type="button" class="button secondary" disabled={loading || results.page <= 1} mix={on("click", () => changePage(page - 1))}><IconArrowLeft size={16} />Previous</button><button type="button" class="button secondary" disabled={loading || results.page >= results.pages} mix={on("click", () => changePage(page + 1))}>Next<IconArrowRight size={16} /></button></div></nav>}
+      </>}
     </main>
     <footer class="site-footer"><div><a class="footer-brand" href="/">@nosweat<span>/</span>icons</a><span>Built with the icons you’re looking at.</span></div><a href="https://tabler.io/icons" target="_blank" rel="noreferrer">Tabler Icons · MIT<IconArrowUpRight size={14} /></a></footer>
     {selected && <IconModal key={selected.component} icon={selected} close={() => { selected = undefined; handle.update(); }} />}
