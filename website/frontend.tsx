@@ -4,6 +4,7 @@ import { iconExample, iconImport, type IconRecord, type SearchResults, type Styl
 
 import { CopyButton } from "./copy-button.tsx";
 import { Home } from "./home.tsx";
+import { iconPath, iconSlug, parseIconRoute, type ExampleTab } from "./icon-route.ts";
 
 function IconTile(handle: Handle<{ icon: IconRecord; select: (icon: IconRecord) => void }>) {
   return () => {
@@ -16,13 +17,12 @@ function IconTile(handle: Handle<{ icon: IconRecord; select: (icon: IconRecord) 
   };
 }
 
-function IconModal(handle: Handle<{ icon: IconRecord; close: () => void }>) {
+function IconModal(handle: Handle<{ icon: IconRecord; tab: ExampleTab; changeTab: (tab: ExampleTab) => void; close: () => void }>) {
   let dialog: HTMLDialogElement;
-  let tab: "component" | "import" = "component";
   let size = 96;
   const close = () => { dialog.close(); handle.props.close(); };
   return () => {
-    const { icon } = handle.props;
+    const { icon, tab, changeTab } = handle.props;
     const code = tab === "component" ? iconExample(icon) : iconImport(icon);
     return <dialog class="icon-dialog" aria-labelledby="modal-title" mix={[
       ref(node => { dialog = node as HTMLDialogElement; dialog.showModal(); }),
@@ -38,10 +38,11 @@ function IconModal(handle: Handle<{ icon: IconRecord; close: () => void }>) {
         <div class="code-panel">
           <div class="code-toolbar"><div class="tabs" role="tablist" aria-label="Usage example">
             {(["component", "import"] as const).map(item => <button id={`example-tab-${item}`} type="button" role="tab" aria-selected={tab === item} aria-controls="example-code" tabIndex={tab === item ? 0 : -1}
-              mix={[on("click", () => { tab = item; handle.update(); }), on("keydown", event => {
+              mix={[on("click", () => changeTab(item)), on("keydown", event => {
                 if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-                  event.preventDefault(); tab = event.key === "Home" ? "component" : event.key === "End" ? "import" : tab === "component" ? "import" : "component";
-                  handle.update(); handle.queueTask(() => document.getElementById(`example-tab-${tab}`)?.focus());
+                  event.preventDefault();
+                  const nextTab = event.key === "Home" ? "component" : event.key === "End" ? "import" : tab === "component" ? "import" : "component";
+                  changeTab(nextTab); handle.queueTask(() => document.getElementById(`example-tab-${nextTab}`)?.focus());
                 }
               })]}>{item === "component" ? "Remix 3.1" : "Core data"}</button>)}
           </div><CopyButton text={code} label="Copy usage example" /></div>
@@ -56,6 +57,7 @@ function IconModal(handle: Handle<{ icon: IconRecord; close: () => void }>) {
 function App(handle: Handle) {
   const isHome = location.pathname === "/";
   const initial = new URLSearchParams(location.search);
+  const route = parseIconRoute(location.pathname);
   let query = initial.get("q") || "";
   let style: StyleFilter = ["outline", "filled"].includes(initial.get("style") || "") ? initial.get("style") as StyleFilter : "all";
   let page = Math.max(1, Number(initial.get("page")) || 1);
@@ -63,18 +65,40 @@ function App(handle: Handle) {
   let loading = true;
   let error = "";
   let selected: IconRecord | undefined;
+  let selectedSlug = route?.slug || "";
+  let legacyComponent = route ? "" : initial.get("icon") || "";
+  let tab: ExampleTab = route?.tab ?? (initial.get("tab") === "import" ? "import" : "component");
   let theme = document.documentElement.dataset.theme || "light";
   let timeout: ReturnType<typeof setTimeout>;
   let controller: AbortController | undefined;
   let requestId = 0;
 
-  const select = (icon: IconRecord) => { selected = icon; handle.update(); };
+  const select = (icon: IconRecord) => { selected = icon; selectedSlug = iconSlug(icon); legacyComponent = ""; updateURL(); handle.update(); };
+  const changeTab = (nextTab: ExampleTab) => { tab = nextTab; updateURL(); handle.update(); };
+  const close = () => { selected = undefined; selectedSlug = ""; legacyComponent = ""; tab = "component"; updateURL(); handle.update(); };
+  async function restoreIcon() {
+    const target = selectedSlug || legacyComponent;
+    const legacy = !!legacyComponent;
+    if (!target) return;
+    const search = legacy ? target : target.replace(/-filled$/, "");
+    try {
+      const response = await fetch(`/api/search?${new URLSearchParams({ q: search })}`, { signal: handle.signal });
+      if (!response.ok) return;
+      const data: SearchResults = await response.json();
+      if (handle.signal.aborted || (selectedSlug || legacyComponent) !== target) return;
+      const icon = data.icons.find(icon => legacy ? icon.component === target : iconSlug(icon) === target);
+      if (!icon) { close(); return; }
+      select(icon);
+    } catch { /* Keep the explorer usable if the linked icon cannot be loaded. */ }
+  }
   function updateURL() {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (style !== "all") params.set("style", style);
     if (page > 1) params.set("page", String(page));
-    history.replaceState(null, "", `/icons${params.size ? `?${params}` : ""}`);
+    if (legacyComponent) { params.set("icon", legacyComponent); params.set("tab", tab); }
+    const path = selectedSlug ? iconPath(selectedSlug, tab) : "/icons";
+    history.replaceState(null, "", `${path}${params.size ? `?${params}` : ""}`);
   }
   async function load() {
     const current = ++requestId;
@@ -105,7 +129,7 @@ function App(handle: Handle) {
     clearTimeout(timeout); page = nextPage; void load();
     document.getElementById("explorer-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
-  if (!isHome) handle.queueTask(() => { void load(); });
+  if (!isHome) handle.queueTask(() => { void load(); void restoreIcon(); });
   handle.signal.addEventListener("abort", () => { clearTimeout(timeout); controller?.abort(); });
   document.title = isHome ? "Install — @nosweat/icons" : "Tabler — @nosweat/icons";
 
@@ -137,7 +161,7 @@ function App(handle: Handle) {
       </>}
     </main>
     <footer class="site-footer"><div><a class="footer-brand" href="/">@nosweat<span>/</span>icons</a><span>Built with the icons you’re looking at.</span></div><a href="https://tabler.io/icons" target="_blank" rel="noreferrer">Tabler Icons · MIT<IconArrowUpRight size={14} /></a></footer>
-    {selected && <IconModal key={selected.component} icon={selected} close={() => { selected = undefined; handle.update(); }} />}
+    {selected && <IconModal key={selected.component} icon={selected} tab={tab} changeTab={changeTab} close={close} />}
   </>;
 }
 

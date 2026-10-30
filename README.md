@@ -79,6 +79,20 @@ bun check
 bun run dev                          # http://127.0.0.1:3000
 ```
 
+With [mise](https://mise.jdx.dev/) installed, use Pitchfork to manage the dev website in the background:
+
+```sh
+mise trust
+mise install
+mise run start                       # http://127.0.0.1:4311 (waits for readiness)
+mise run status
+mise run logs                        # Ctrl-C leaves the website running
+mise run restart
+mise run stop
+```
+
+`start` and `restart` install dependencies and generate icons if missing. `mise run dev` runs the foreground hot-reload server on port 3000. Pitchfork uses a directory-derived namespace so stopping this checkout does not stop other projects. Local overrides can go in `mise.local.toml` and `pitchfork.local.toml` (both ignored by Git).
+
 The generator downloads raw SVGs directly from Tabler's tagged GitHub archive using Bun, validates them, preserves Tabler's MIT license, and writes a versioned manifest. Generation uses a staging directory so failures do not destroy the last successful output. Set `GITHUB_TOKEN` if needed for GitHub API rate limits. Generated sources are ignored; generate before building or packing the npm package.
 
 ## Cloudflare

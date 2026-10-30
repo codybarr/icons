@@ -1,3 +1,4 @@
+import { parseIconRoute } from "./icon-route.ts";
 import { createIconSearch } from "./search.ts";
 import type { IconRecord, SearchResults, StyleFilter } from "./shared.ts";
 
@@ -45,7 +46,7 @@ export function createWorker(manifest: Manifest) {
       return new Response(asset.body, { headers });
     }
     if (url.pathname.startsWith("/api/")) return new Response("Not found", { status: 404 });
-    if (["/", "/icons", "/icons/"].includes(url.pathname)) url.pathname = "/index.html";
+    if (["/", "/icons", "/icons/"].includes(url.pathname) || parseIconRoute(url.pathname)) url.pathname = "/index.html";
     return env.ASSETS.fetch(new Request(url, request));
   }
 }

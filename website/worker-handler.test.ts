@@ -25,7 +25,7 @@ test("Worker serves only known SVGs with cache headers and conditional requests"
 });
 
 test("Worker serves both pages, redirects favicon, and preserves asset 404s", async () => {
-  for (const path of ["/", "/icons", "/icons/"]) expect(await (await request(path)).text()).toBe("/index.html");
+  for (const path of ["/", "/icons", "/icons/", "/icons/accessible-off/core", "/icons/heart-filled/remix?q=heart"]) expect(await (await request(path)).text()).toBe("/index.html");
   expect((await request("/favicon.ico")).headers.get("location")).toBe("/api/icons/IconGridDots");
   expect((await request("/api/unknown")).status).toBe(404);
   expect((await request("/api/search", { method: "POST" })).status).toBe(405);

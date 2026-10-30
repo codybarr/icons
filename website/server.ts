@@ -19,6 +19,7 @@ const server = Bun.serve({
   routes: {
     "/": html,
     "/icons": html,
+    "/icons/:icon/:tab": html,
     "/favicon.ico": () => new Response(null, { status: 302, headers: { Location: "/api/icons/IconGridDots" } }),
     "/api/search": (req) => {
       const url = new URL(req.url);
