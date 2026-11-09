@@ -1,6 +1,6 @@
 {
   "name": "@nosweat/icons",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Tree-shakable icon geometry and native Remix 3.1 components",
   "repository": {
     "type": "git",
